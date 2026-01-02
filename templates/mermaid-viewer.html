@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid Diagram Visualizer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            background: var(--bg-color, #ffffff);
+            color: var(--text-color, #333333);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                --bg-color: #1a1a1a;
+                --text-color: #e0e0e0;
+                --border-color: #444444;
+                --button-bg: #2d2d2d;
+                --button-hover: #3d3d3d;
+                --textarea-bg: #2d2d2d;
+                --textarea-border: #444444;
+            }
+        }
+
+        @media (prefers-color-scheme: light) {
+            body {
+                --bg-color: #ffffff;
+                --text-color: #333333;
+                --border-color: #dddddd;
+                --button-bg: #f5f5f5;
+                --button-hover: #e5e5e5;
+                --textarea-bg: #ffffff;
+                --textarea-border: #cccccc;
+            }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: var(--button-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background: var(--button-hover);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .diagram-container {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            min-height: 300px;
+            overflow: auto;
+        }
+
+        .diagram-container svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .editor-section {
+            margin-top: 20px;
+        }
+
+        .editor-section h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            background: var(--textarea-bg);
+            color: var(--text-color);
+            border: 1px solid var(--textarea-border);
+            border-radius: 6px;
+            resize: vertical;
+        }
+
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .status.success {
+                background: #1e4620;
+                color: #81c784;
+                border-color: #2e7d32;
+            }
+
+            .status.error {
+                background: #4a1e1e;
+                color: #e57373;
+                border-color: #c62828;
+            }
+
+            .status.info {
+                background: #1e3a4a;
+                color: #64b5f6;
+                border-color: #1976d2;
+            }
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-color);
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Mermaid Diagram Visualizer</h1>
+        </div>
+
+        <div class="controls">
+            <button id="regenerateBtn" onclick="handleRegenerate()">Regenerate</button>
+            <button id="downloadBtn" onclick="handleDownload()">Download PNG</button>
+            <button id="refreshBtn" onclick="handleRefresh()">Refresh Diagram</button>
+        </div>
+
+        <div id="status" class="status hidden"></div>
+
+        <div class="diagram-container" id="diagramContainer">
+            <div class="loading">Loading diagram...</div>
+        </div>
+
+        <div class="editor-section">
+            <h2>Edit Mermaid Code</h2>
+            <textarea id="mermaidCode" placeholder="Enter Mermaid diagram code here..."></textarea>
+        </div>
+    </div>
+
+    <!-- Load Mermaid library -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+        // Initialize Mermaid with dark mode support
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: prefersDark ? 'dark' : 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true
+            }
+        });
+
+        // Make mermaid available globally
+        window.mermaid = mermaid;
+
+        // Get tool output from ChatGPT Apps SDK
+        let currentMermaidCode = '';
+        let currentToolOutput = null;
+
+        /**
+         * Read tool output from window.openai.toolOutput
+         * This is provided by ChatGPT Apps SDK
+         */
+        function getToolOutput() {
+            if (window.openai && window.openai.toolOutput) {
+                try {
+                    const output = window.openai.toolOutput;
+                    if (typeof output === 'string') {
+                        const parsed = JSON.parse(output);
+                        return parsed;
+                    }
+                    return output;
+                } catch (error) {
+                    console.error('Error parsing tool output:', error);
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Extract Mermaid code from tool output
+         */
+        function extractMermaidCode(toolOutput) {
+            if (!toolOutput) return null;
+
+            // Handle different output formats
+            if (toolOutput.mermaid_code) {
+                return toolOutput.mermaid_code;
+            }
+
+            if (typeof toolOutput === 'string') {
+                try {
+                    const parsed = JSON.parse(toolOutput);
+                    if (parsed.mermaid_code) {
+                        return parsed.mermaid_code;
+                    }
+                } catch (e) {
+                    // Not JSON, might be direct Mermaid code
+                    return toolOutput;
+                }
+            }
+
+            // Try to find mermaid_code in nested structures
+            if (toolOutput.content && Array.isArray(toolOutput.content)) {
+                for (const item of toolOutput.content) {
+                    if (item.text) {
+                        try {
+                            const parsed = JSON.parse(item.text);
+                            if (parsed.mermaid_code) {
+                                return parsed.mermaid_code;
+                            }
+                        } catch (e) {
+                            // Continue searching
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /**
+         * Render Mermaid diagram
+         */
+        async function renderDiagram(mermaidCode) {
+            const container = document.getElementById('diagramContainer');
+            
+            if (!mermaidCode || !mermaidCode.trim()) {
+                container.innerHTML = '<div class="loading">No diagram code available. Please generate a diagram first.</div>';
+                return;
+            }
+
+            try {
+                // Clear container
+                container.innerHTML = '';
+
+                // Create a unique ID for this diagram
+                const diagramId = 'mermaid-diagram-' + Date.now();
+                const diagramDiv = document.createElement('div');
+                diagramDiv.id = diagramId;
+                diagramDiv.className = 'mermaid';
+                diagramDiv.textContent = mermaidCode;
+                container.appendChild(diagramDiv);
+
+                // Render the diagram
+                await mermaid.run({
+                    nodes: [diagramDiv]
+                });
+
+                // Update textarea
+                document.getElementById('mermaidCode').value = mermaidCode;
+                currentMermaidCode = mermaidCode;
+
+                showStatus('Diagram rendered successfully!', 'success');
+
+            } catch (error) {
+                console.error('Error rendering diagram:', error);
+                container.innerHTML = `<div class="status error">Error rendering diagram: ${error.message}</div>`;
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        /**
+         * Show status message
+         */
+        function showStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.classList.remove('hidden');
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusEl.classList.add('hidden');
+            }, 5000);
+        }
+
+        /**
+         * Handle regenerate button click
+         * Calls window.openai.callTool() to invoke backend tools
+         */
+        window.handleRegenerate = async function() {
+            if (!window.openai || !window.openai.callTool) {
+                showStatus('ChatGPT Apps SDK not available. This component must be used within ChatGPT.', 'error');
+                return;
+            }
+
+            try {
+                showStatus('Regenerating diagram...', 'info');
+                
+                // Get current text from editor or use a default
+                const editorText = document.getElementById('mermaidCode').value.trim();
+                
+                // Call the generate_diagram tool
+                const result = await window.openai.callTool('generate_diagram', {
+                    text: editorText || 'Create a simple flowchart',
+                    diagramType: 'flowchart'
+                });
+
+                if (result && result.mermaid_code) {
+                    await renderDiagram(result.mermaid_code);
+                    showStatus('Diagram regenerated successfully!', 'success');
+                } else {
+                    showStatus('Failed to regenerate diagram. Please try again.', 'error');
+                }
+
+            } catch (error) {
+                console.error('Error regenerating diagram:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        };
+
+        /**
+         * Handle download PNG button
+         * Converts SVG to PNG using canvas
+         */
+        window.handleDownload = async function() {
+            const container = document.getElementById('diagramContainer');
+            const svg = container.querySelector('svg');
+
+            if (!svg) {
+                showStatus('No diagram to download. Please generate a diagram first.', 'error');
+                return;
+            }
+
+            try {
+                // Clone the SVG to avoid modifying the original
+                const svgClone = svg.cloneNode(true);
+                
+                // Get SVG as string
+                const svgData = new XMLSerializer().serializeToString(svgClone);
+                const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                const svgUrl = URL.createObjectURL(svgBlob);
+
+                // Create image element
+                const img = new Image();
+                img.onload = function() {
+                    // Create canvas
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+
+                    // Draw image on canvas
+                    ctx.drawImage(img, 0, 0);
+
+                    // Convert to PNG
+                    canvas.toBlob(function(blob) {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'mermaid-diagram-' + Date.now() + '.png';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        URL.revokeObjectURL(svgUrl);
+                        
+                        showStatus('Diagram downloaded successfully!', 'success');
+                    }, 'image/png');
+                };
+
+                img.onerror = function() {
+                    showStatus('Error loading SVG for download.', 'error');
+                    URL.revokeObjectURL(svgUrl);
+                };
+
+                img.src = svgUrl;
+
+            } catch (error) {
+                console.error('Error downloading diagram:', error);
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        };
+
+        /**
+         * Handle refresh button click
+         * Re-renders the diagram from the textarea
+         */
+        window.handleRefresh = async function() {
+            const mermaidCode = document.getElementById('mermaidCode').value.trim();
+            
+            if (!mermaidCode) {
+                showStatus('Please enter Mermaid code in the editor.', 'error');
+                return;
+            }
+
+            await renderDiagram(mermaidCode);
+        };
+
+        /**
+         * Initialize: Load diagram from tool output
+         */
+        async function initialize() {
+            // Wait a bit for window.openai to be available
+            if (window.openai && window.openai.toolOutput) {
+                const toolOutput = getToolOutput();
+                const mermaidCode = extractMermaidCode(toolOutput);
+                
+                if (mermaidCode) {
+                    currentToolOutput = toolOutput;
+                    await renderDiagram(mermaidCode);
+                } else {
+                    document.getElementById('diagramContainer').innerHTML = 
+                        '<div class="loading">Waiting for diagram data...</div>';
+                }
+            } else {
+                // Poll for window.openai availability
+                const checkInterval = setInterval(() => {
+                    if (window.openai && window.openai.toolOutput) {
+                        clearInterval(checkInterval);
+                        initialize();
+                    }
+                }, 100);
+
+                // Timeout after 5 seconds
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    if (!window.openai) {
+                        document.getElementById('diagramContainer').innerHTML = 
+                            '<div class="status info">ChatGPT Apps SDK not detected. This component is designed to work within ChatGPT.</div>';
+                    }
+                }, 5000);
+            }
+        }
+
+        // Listen for tool output updates
+        if (window.openai) {
+            // If openai object exists, set up listener
+            const originalToolOutput = window.openai.toolOutput;
+            Object.defineProperty(window.openai, 'toolOutput', {
+                get: function() {
+                    return originalToolOutput;
+                },
+                set: function(value) {
+                    originalToolOutput = value;
+                    initialize();
+                }
+            });
+        }
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', initialize);
+        
+        // Also try immediate initialization
+        initialize();
+
+        // Listen for dark mode changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: e.matches ? 'dark' : 'default',
+                securityLevel: 'loose',
+                flowchart: {
+                    useMaxWidth: true,
+                    htmlLabels: true
+                }
+            });
+            if (currentMermaidCode) {
+                renderDiagram(currentMermaidCode);
+            }
+        });
+    </script>
+</body>
+</html>
+
