@@ -847,6 +847,36 @@ app.get('/.well-known/openid-configuration', (req, res) => {
  * MCP JSON-RPC Endpoint
  * Main endpoint for MCP protocol requests
  */
+
+// GET /mcp - Info endpoint for browser/validation
+app.get('/mcp', (req, res) => {
+  res.json({
+    name: "Mermaid Visualizer MCP Server",
+    version: "1.0.0",
+    status: "healthy",
+    protocol: "MCP (Model Context Protocol)",
+    description: "Convert text and data into beautiful Mermaid diagrams",
+    endpoints: {
+      health: `${req.protocol}://${req.get('host')}/health`,
+      mcp_post: `${req.protocol}://${req.get('host')}/mcp`
+    },
+    capabilities: [
+      "generate_diagram",
+      "parse_file"
+    ],
+    supported_diagram_types: ["flowchart", "sequence", "class", "er", "gantt"],
+    usage: {
+      method: "POST",
+      content_type: "application/json",
+      example: {
+        jsonrpc: "2.0",
+        method: "tools/list",
+        id: 1
+      }
+    }
+  });
+});
+
 // #region agent log
 app.options('/mcp', (req, res) => {
   fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:612',message:'OPTIONS preflight request',data:{origin:req.headers.origin,method:req.method,accessControlRequestMethod:req.headers['access-control-request-method'],accessControlRequestHeaders:req.headers['access-control-request-headers']},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
