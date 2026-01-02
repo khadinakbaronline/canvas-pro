@@ -22,33 +22,22 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS configuration for ChatGPT origin
-const corsOptions = {
-  origin: function (origin, callback) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:26',message:'CORS origin check',data:{origin,allowedOrigins:['https://chat.openai.com','https://chatgpt.com','http://localhost:3000'],isNgrok:origin&&origin.includes('ngrok'),isAllowed:!origin||['https://chat.openai.com','https://chatgpt.com','http://localhost:3000'].includes(origin)||origin.includes('ngrok')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    // Allow ChatGPT origins and ngrok URLs
-    if (['https://chat.openai.com', 'https://chatgpt.com', 'http://localhost:3000'].includes(origin) || origin.includes('ngrok')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  next();
+});
+
+// CORS configuration - permissive for MCP servers
+app.use(cors({
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-};
+}));
 
-// #region agent log
-app.use((req, res, next) => {
-  fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:37',message:'Incoming request',data:{method:req.method,path:req.path,origin:req.headers.origin,userAgent:req.headers['user-agent'],contentType:req.headers['content-type']},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  next();
-});
-// #endregion
-app.use(cors(corsOptions));
+app.options('*', cors());
 // #region agent log
 app.use((req, res, next) => {
   fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:44',message:'After CORS middleware',data:{origin:req.headers.origin,method:req.method,path:req.path},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
@@ -1133,13 +1122,11 @@ app.post('/resources/read', async (req, res) => {
 });
 
 /**
- * Error handling middleware
+ * Global error handler
  */
 app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error'
-  });
+  console.error('Error:', err);
+  res.status(500).json({ error: err.message });
 });
 
 /**
