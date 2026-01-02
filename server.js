@@ -491,7 +491,8 @@ async function handleMCPRequest(req, res) {
                 required: ['text']
               },
               _meta: {
-                'openai/outputTemplate': 'template://mermaid-viewer'
+                'openai/outputTemplate': 'template://mermaid-viewer',
+                'openai/widgetPrefersBorder': true
               }
             },
             {
@@ -513,7 +514,8 @@ async function handleMCPRequest(req, res) {
                 required: ['file_content', 'file_type']
               },
               _meta: {
-                'openai/outputTemplate': 'template://mermaid-viewer'
+                'openai/outputTemplate': 'template://mermaid-viewer',
+                'openai/widgetPrefersBorder': true
               }
             }
           ]
@@ -684,7 +686,8 @@ async function handleMCPRequest(req, res) {
                 text: `Generated ${diagramType} diagram: ${text}`
               }],
               _meta: {
-                'openai/outputTemplate': 'template://mermaid-viewer'
+                'openai/outputTemplate': 'template://mermaid-viewer',
+                'openai/widgetPrefersBorder': true
               },
               mermaid_code: mermaidCode,
               diagram_type: diagramType,
@@ -709,7 +712,8 @@ async function handleMCPRequest(req, res) {
               mermaid_code: parseResult.mermaid_code,
               parsed_data: parseResult.parsed_data,
               _meta: {
-                'openai/outputTemplate': 'template://mermaid-viewer'
+                'openai/outputTemplate': 'template://mermaid-viewer',
+                'openai/widgetPrefersBorder': true
               },
               isError: false
             };
@@ -752,12 +756,23 @@ async function handleMCPRequest(req, res) {
           try {
             const templatePath = join(__dirname, 'templates', 'mermaid-viewer.html');
             const templateContent = readFileSync(templatePath, 'utf8');
+            const widgetDomain = process.env.BASE_URL || process.env.WIDGET_DOMAIN || `http://localhost:${PORT}`;
             result = {
               contents: [
                 {
                   uri: 'template://mermaid-viewer',
-                  mimeType: 'text/html',
-                  text: templateContent
+                  mimeType: 'text/html+skybridge',
+                  text: templateContent,
+                  metadata: {
+                    'openai/widgetPrefersBorder': true,
+                    'openai/widgetDomain': widgetDomain,
+                    'openai/widgetCSP': {
+                      connect_domains: ['https://cdn.jsdelivr.net'],
+                      resource_domains: ['https://cdn.jsdelivr.net', 'https://*.oaistatic.com'],
+                      redirect_domains: [],
+                      frame_domains: []
+                    }
+                  }
                 }
               ]
             };
