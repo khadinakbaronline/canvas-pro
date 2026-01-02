@@ -848,32 +848,17 @@ app.get('/.well-known/openid-configuration', (req, res) => {
  * Main endpoint for MCP protocol requests
  */
 
-// GET /mcp - Info endpoint for browser/validation
+// GET /mcp - Server info endpoint
 app.get('/mcp', (req, res) => {
   res.json({
     name: "Mermaid Visualizer MCP Server",
     version: "1.0.0",
     status: "healthy",
     protocol: "MCP (Model Context Protocol)",
-    description: "Convert text and data into beautiful Mermaid diagrams",
-    endpoints: {
-      health: `${req.protocol}://${req.get('host')}/health`,
-      mcp_post: `${req.protocol}://${req.get('host')}/mcp`
-    },
-    capabilities: [
-      "generate_diagram",
-      "parse_file"
-    ],
-    supported_diagram_types: ["flowchart", "sequence", "class", "er", "gantt"],
-    usage: {
-      method: "POST",
-      content_type: "application/json",
-      example: {
-        jsonrpc: "2.0",
-        method: "tools/list",
-        id: 1
-      }
-    }
+    description: "Convert text and data into Mermaid diagrams",
+    capabilities: ["generate_diagram", "parse_file"],
+    supported_types: ["flowchart", "sequence", "class", "er", "gantt"],
+    usage: "POST to this endpoint with MCP protocol messages"
   });
 });
 
