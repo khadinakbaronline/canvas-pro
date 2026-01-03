@@ -216,6 +216,20 @@
             flowchart: {
                 useMaxWidth: true,
                 htmlLabels: true
+            },
+            sequence: {
+                diagramMarginX: 50,
+                diagramMarginY: 10,
+                actorMargin: 50
+            },
+            gantt: {
+                useMaxWidth: true
+            },
+            pie: {
+                useMaxWidth: true
+            },
+            gitGraph: {
+                useMaxWidth: true
             }
         });
 
@@ -249,28 +263,40 @@
 
         /**
          * Extract Mermaid code from tool output
+         * Handles multiple response formats from MCP server
          */
         function extractMermaidCode(toolOutput) {
             if (!toolOutput) return null;
 
-            // Handle different output formats
+            // Direct mermaid_code at root level (our server format)
             if (toolOutput.mermaid_code) {
                 return toolOutput.mermaid_code;
             }
 
+            // Handle string input (JSON stringified)
             if (typeof toolOutput === 'string') {
                 try {
                     const parsed = JSON.parse(toolOutput);
                     if (parsed.mermaid_code) {
                         return parsed.mermaid_code;
                     }
+                    // Recursive call on parsed object
+                    return extractMermaidCode(parsed);
                 } catch (e) {
                     // Not JSON, might be direct Mermaid code
-                    return toolOutput;
+                    if (toolOutput.trim().startsWith('flowchart') || 
+                        toolOutput.trim().startsWith('sequenceDiagram') ||
+                        toolOutput.trim().startsWith('classDiagram') ||
+                        toolOutput.trim().startsWith('erDiagram') ||
+                        toolOutput.trim().startsWith('gantt') ||
+                        toolOutput.trim().startsWith('pie') ||
+                        toolOutput.trim().startsWith('gitGraph')) {
+                        return toolOutput;
+                    }
                 }
             }
 
-            // Try to find mermaid_code in nested structures
+            // Try to find mermaid_code in nested content structures
             if (toolOutput.content && Array.isArray(toolOutput.content)) {
                 for (const item of toolOutput.content) {
                     if (item.text) {
@@ -284,6 +310,11 @@
                         }
                     }
                 }
+            }
+
+            // Check result object
+            if (toolOutput.result) {
+                return extractMermaidCode(toolOutput.result);
             }
 
             return null;
@@ -524,6 +555,20 @@
                 flowchart: {
                     useMaxWidth: true,
                     htmlLabels: true
+                },
+                sequence: {
+                    diagramMarginX: 50,
+                    diagramMarginY: 10,
+                    actorMargin: 50
+                },
+                gantt: {
+                    useMaxWidth: true
+                },
+                pie: {
+                    useMaxWidth: true
+                },
+                gitGraph: {
+                    useMaxWidth: true
                 }
             });
             if (currentMermaidCode) {
