@@ -424,6 +424,19 @@ async function handleMCPRequest(req, res) {
   fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:419',message:'MCP handler entry',data:{requestId,method:req.method,path:req.path,mcpMethod:req.body?.method,headers:Object.keys(req.headers)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
   // #endregion
   
+  // Handle empty or malformed request body
+  if (!req.body || typeof req.body !== 'object') {
+    console.error(`[MCP Request ${requestId}] Invalid request body:`, req.body);
+    return res.status(400).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32600,
+        message: 'Invalid Request: Request body is required'
+      },
+      id: null
+    });
+  }
+  
   console.log(`[MCP Request ${requestId}] ${req.body?.method || 'unknown'} - Started`);
   
   try {
@@ -447,6 +460,18 @@ async function handleMCPRequest(req, res) {
       });
     }
 
+    // Ensure params exists for methods that need it
+    if ((method === 'tools/call' || method === 'resources/read') && !params) {
+      return res.status(400).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32602,
+          message: 'Invalid params: params required for this method'
+        },
+        id
+      });
+    }
+
     let result;
 
     switch (method) {
@@ -454,8 +479,12 @@ async function handleMCPRequest(req, res) {
         result = {
           protocolVersion: '2024-11-05',
           capabilities: {
-            tools: {},
-            resources: {}
+            tools: {
+              listChanged: true
+            },
+            resources: {
+              listChanged: true
+            }
           },
           serverInfo: {
             name: SERVER_NAME,
@@ -916,6 +945,18 @@ app.options('/mcp', (req, res) => {
   res.sendStatus(200);
 });
 // #endregion
+
+// Add middleware to log request body for debugging
+app.use('/mcp', (req, res, next) => {
+  if (req.method === 'POST') {
+    console.log('[MCP Debug] Request Body:', JSON.stringify(req.body, null, 2));
+    console.log('[MCP Debug] Content-Type:', req.headers['content-type']);
+    console.log('[MCP Debug] Request Method:', req.method);
+    console.log('[MCP Debug] Request Path:', req.path);
+  }
+  next();
+});
+
 app.post('/mcp', handleMCPRequest);
 
 /**
