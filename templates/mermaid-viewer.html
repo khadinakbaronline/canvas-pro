@@ -268,7 +268,12 @@
         function extractMermaidCode(toolOutput) {
             if (!toolOutput) return null;
 
-            // Direct mermaid_code at root level (our server format)
+            // Check structuredContent first (OpenAI Apps SDK format)
+            if (toolOutput.structuredContent && toolOutput.structuredContent.mermaid_code) {
+                return toolOutput.structuredContent.mermaid_code;
+            }
+            
+            // Fallback: Direct mermaid_code at root level (backward compatibility)
             if (toolOutput.mermaid_code) {
                 return toolOutput.mermaid_code;
             }
@@ -277,6 +282,10 @@
             if (typeof toolOutput === 'string') {
                 try {
                     const parsed = JSON.parse(toolOutput);
+                    // Check structuredContent first
+                    if (parsed.structuredContent && parsed.structuredContent.mermaid_code) {
+                        return parsed.structuredContent.mermaid_code;
+                    }
                     if (parsed.mermaid_code) {
                         return parsed.mermaid_code;
                     }
@@ -302,6 +311,10 @@
                     if (item.text) {
                         try {
                             const parsed = JSON.parse(item.text);
+                            // Check structuredContent first
+                            if (parsed.structuredContent && parsed.structuredContent.mermaid_code) {
+                                return parsed.structuredContent.mermaid_code;
+                            }
                             if (parsed.mermaid_code) {
                                 return parsed.mermaid_code;
                             }
@@ -398,8 +411,10 @@
                     diagramType: 'flowchart'
                 });
 
-                if (result && result.mermaid_code) {
-                    await renderDiagram(result.mermaid_code);
+                // Check structuredContent first, then fallback to root level
+                const mermaidCode = (result?.structuredContent?.mermaid_code) || (result?.mermaid_code);
+                if (mermaidCode) {
+                    await renderDiagram(mermaidCode);
                     showStatus('Diagram regenerated successfully!', 'success');
                 } else {
                     showStatus('Failed to regenerate diagram. Please try again.', 'error');

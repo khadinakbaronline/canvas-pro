@@ -446,9 +446,11 @@ async function handleMCPRequest(req, res) {
     // #endregion
 
     // MCP protocol uses JSON-RPC 2.0
-    if (!method || typeof id === 'undefined') {
+    // Notifications don't have an id, so only require id for requests (not notifications)
+    const isNotification = method && method.startsWith('notifications/');
+    if (!method || (!isNotification && typeof id === 'undefined')) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:377',message:'Invalid MCP request - missing method or id',data:{hasMethod:!!method,hasId:typeof id!=='undefined',body:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:377',message:'Invalid MCP request - missing method or id',data:{hasMethod:!!method,hasId:typeof id!=='undefined',isNotification,body:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       return res.status(400).json({
         jsonrpc: '2.0',
@@ -458,6 +460,17 @@ async function handleMCPRequest(req, res) {
         },
         id: null
       });
+    }
+    
+    // Handle notifications (they don't return a response)
+    if (isNotification) {
+      console.log(`[MCP Request ${requestId}] ${method} - Notification received (no response needed)`);
+      if (method === 'notifications/initialized') {
+        // Client has finished initialization, we can now accept tool calls
+        console.log(`[MCP Request ${requestId}] Client initialized successfully`);
+      }
+      // Notifications don't send a response in JSON-RPC 2.0
+      return res.status(200).send();
     }
 
     // Ensure params exists for methods that need it
@@ -476,15 +489,36 @@ async function handleMCPRequest(req, res) {
 
     switch (method) {
       case 'initialize':
+        // Get client's requested protocol version, default to latest supported
+        const clientProtocolVersion = params?.protocolVersion || '2024-11-05';
+        // Support protocol versions: 2024-11-05, 2025-03-26, 2025-11-25
+        // Use the client's version if it's supported, otherwise use the latest we support
+        const supportedVersions = ['2024-11-05', '2025-03-26', '2025-11-25'];
+        const protocolVersion = supportedVersions.includes(clientProtocolVersion) 
+          ? clientProtocolVersion 
+          : '2025-11-25'; // Use latest supported version
+        
+        // Check if client requested experimental capabilities
+        const clientExperimental = params?.capabilities?.experimental || {};
+        const supportsOpenAIVisibility = clientExperimental['openai/visibility']?.enabled === true;
+        
         result = {
-          protocolVersion: '2024-11-05',
+          protocolVersion: protocolVersion,
           capabilities: {
             tools: {
               listChanged: true
             },
             resources: {
               listChanged: true
-            }
+            },
+            // Include experimental capabilities if client supports them
+            ...(supportsOpenAIVisibility && {
+              experimental: {
+                'openai/visibility': {
+                  enabled: true
+                }
+              }
+            })
           },
           serverInfo: {
             name: SERVER_NAME,
@@ -498,6 +532,7 @@ async function handleMCPRequest(req, res) {
           tools: [
             {
               name: 'generate_diagram',
+              title: 'Generate Mermaid Diagram',
               description: 'Convert text or data into Mermaid diagram code',
               inputSchema: {
                 type: 'object',
@@ -514,13 +549,24 @@ async function handleMCPRequest(req, res) {
                 },
                 required: ['text']
               },
+              annotations: {
+                readOnlyHint: false,
+                destructiveHint: false,
+                openWorldHint: false
+              },
               _meta: {
+                securitySchemes: [
+                  { type: 'noauth' }
+                ],
                 'openai/outputTemplate': 'template://mermaid-viewer',
-                'openai/widgetPrefersBorder': true
+                'openai/widgetPrefersBorder': true,
+                'openai/toolInvocation/invoking': 'Generating diagram…',
+                'openai/toolInvocation/invoked': 'Diagram ready'
               }
             },
             {
               name: 'parse_file',
+              title: 'Parse File to Mermaid',
               description: 'Parse uploaded CSV/JSON/TXT and convert to Mermaid',
               inputSchema: {
                 type: 'object',
@@ -537,9 +583,19 @@ async function handleMCPRequest(req, res) {
                 },
                 required: ['file_content', 'file_type']
               },
+              annotations: {
+                readOnlyHint: false,
+                destructiveHint: false,
+                openWorldHint: false
+              },
               _meta: {
+                securitySchemes: [
+                  { type: 'noauth' }
+                ],
                 'openai/outputTemplate': 'template://mermaid-viewer',
-                'openai/widgetPrefersBorder': true
+                'openai/widgetPrefersBorder': true,
+                'openai/toolInvocation/invoking': 'Parsing file…',
+                'openai/toolInvocation/invoked': 'File parsed'
               }
             }
           ]
@@ -715,16 +771,17 @@ async function handleMCPRequest(req, res) {
             result = {
               content: [{
                 type: 'text',
-                text: `Generated ${diagramType} diagram: ${text}`
+                text: `Generated ${diagramType} diagram from your input.`
               }],
-              _meta: {
-                'openai/outputTemplate': 'template://mermaid-viewer',
-                'openai/widgetPrefersBorder': true
+              structuredContent: {
+                mermaid_code: mermaidCode,
+                diagram_type: diagramType,
+                input_text: text
               },
-              mermaid_code: mermaidCode,
-              diagram_type: diagramType,
-              input_text: text,
-              isError: false
+              _meta: {
+                // Component-only metadata (not visible to model)
+                // outputTemplate is already in tool descriptor, no need to repeat here
+              }
             };
           } else if (name === 'parse_file') {
             const validated = parseFileSchema.parse(toolArgs);
@@ -744,13 +801,15 @@ async function handleMCPRequest(req, res) {
                   text: userMessage
                 }
               ],
-              mermaid_code: parseResult.mermaid_code,
-              parsed_data: parseResult.parsed_data,
-              _meta: {
-                'openai/outputTemplate': 'template://mermaid-viewer',
-                'openai/widgetPrefersBorder': true
+              structuredContent: {
+                mermaid_code: parseResult.mermaid_code,
+                parsed_data: parseResult.parsed_data,
+                file_type: validated.file_type
               },
-              isError: false
+              _meta: {
+                // Component-only metadata (not visible to model)
+                // outputTemplate is already in tool descriptor, no need to repeat here
+              }
             };
           } else {
             throw new Error(`Unknown tool: ${name}`);
@@ -802,6 +861,7 @@ async function handleMCPRequest(req, res) {
                   mimeType: 'text/html+skybridge',
                   text: templateContent,
                   metadata: {
+                    'openai/widgetDescription': 'Interactive Mermaid diagram viewer with editing, download, and regeneration capabilities',
                     'openai/widgetPrefersBorder': true,
                     'openai/widgetDomain': widgetDomain,
                     'openai/widgetCSP': {
