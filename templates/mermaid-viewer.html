@@ -245,19 +245,37 @@
          * This is provided by ChatGPT Apps SDK
          */
         function getToolOutput() {
+            // #region agent log
+            const hasOpenAI = !!window.openai;
+            const hasToolOutput = !!(window.openai && window.openai.toolOutput);
+            const toolOutputType = window.openai?.toolOutput ? typeof window.openai.toolOutput : 'undefined';
+            // #endregion
+            
             if (window.openai && window.openai.toolOutput) {
                 try {
                     const output = window.openai.toolOutput;
                     if (typeof output === 'string') {
                         const parsed = JSON.parse(output);
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:255',message:'Tool output parsed from string',data:{outputType:'string',parsedKeys:parsed?Object.keys(parsed):null,hasStructuredContent:!!parsed?.structuredContent},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                        // #endregion
                         return parsed;
                     }
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:262',message:'Tool output is object',data:{outputType:'object',outputKeys:output?Object.keys(output):null,hasStructuredContent:!!output?.structuredContent,hasMermaidCode:!!output?.mermaid_code},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                    // #endregion
                     return output;
                 } catch (error) {
                     console.error('Error parsing tool output:', error);
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:268',message:'Error parsing tool output',data:{error:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+                    // #endregion
                     return null;
                 }
             }
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:272',message:'Tool output not available',data:{hasOpenAI,hasToolOutput,toolOutputType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
             return null;
         }
 
@@ -266,17 +284,36 @@
          * Handles multiple response formats from MCP server
          */
         function extractMermaidCode(toolOutput) {
-            if (!toolOutput) return null;
+            if (!toolOutput) {
+                console.warn('[Mermaid Widget] extractMermaidCode: toolOutput is null/undefined');
+                return null;
+            }
+
+            console.log('[Mermaid Widget] extractMermaidCode: Checking tool output structure');
+            console.log('[Mermaid Widget] Has structuredContent:', !!toolOutput.structuredContent);
+            console.log('[Mermaid Widget] Has mermaid_code at root:', !!toolOutput.mermaid_code);
 
             // Check structuredContent first (OpenAI Apps SDK format)
             if (toolOutput.structuredContent && toolOutput.structuredContent.mermaid_code) {
+                console.log('[Mermaid Widget] Found mermaid_code in structuredContent');
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:275',message:'Found mermaid_code in structuredContent',data:{hasStructuredContent:true,hasMermaidCode:true,codeLength:toolOutput.structuredContent.mermaid_code.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                // #endregion
                 return toolOutput.structuredContent.mermaid_code;
             }
             
             // Fallback: Direct mermaid_code at root level (backward compatibility)
             if (toolOutput.mermaid_code) {
+                console.log('[Mermaid Widget] Found mermaid_code at root level');
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:283',message:'Found mermaid_code at root level',data:{hasMermaidCode:true,codeLength:toolOutput.mermaid_code.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                // #endregion
                 return toolOutput.mermaid_code;
             }
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:288',message:'Mermaid code not found',data:{hasStructuredContent:!!toolOutput.structuredContent,structuredContentKeys:toolOutput.structuredContent?Object.keys(toolOutput.structuredContent):null,rootKeys:Object.keys(toolOutput),toolOutputType:typeof toolOutput},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
 
             // Handle string input (JSON stringified)
             if (typeof toolOutput === 'string') {
@@ -339,6 +376,10 @@
         async function renderDiagram(mermaidCode) {
             const container = document.getElementById('diagramContainer');
             
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:339',message:'renderDiagram called',data:{hasMermaidCode:!!mermaidCode,codeLength:mermaidCode?.length,hasContainer:!!container,hasMermaid:typeof mermaid!=='undefined'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
+            
             if (!mermaidCode || !mermaidCode.trim()) {
                 container.innerHTML = '<div class="loading">No diagram code available. Please generate a diagram first.</div>';
                 return;
@@ -356,10 +397,18 @@
                 diagramDiv.textContent = mermaidCode;
                 container.appendChild(diagramDiv);
 
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:360',message:'Before mermaid.run',data:{diagramId,hasMermaid:typeof mermaid!=='undefined',hasMermaidRun:typeof mermaid?.run!=='undefined'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+                // #endregion
+
                 // Render the diagram
                 await mermaid.run({
                     nodes: [diagramDiv]
                 });
+                
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:366',message:'After mermaid.run success',data:{diagramId,containerHasContent:container.innerHTML.length>0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+                // #endregion
 
                 // Update textarea
                 document.getElementById('mermaidCode').value = mermaidCode;
@@ -369,6 +418,9 @@
 
             } catch (error) {
                 console.error('Error rendering diagram:', error);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:373',message:'Error rendering diagram',data:{error:error.message,errorStack:error.stack,hasMermaid:typeof mermaid!=='undefined'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+                // #endregion
                 container.innerHTML = `<div class="status error">Error rendering diagram: ${error.message}</div>`;
                 showStatus(`Error: ${error.message}`, 'error');
             }
@@ -508,23 +560,56 @@
          * Initialize: Load diagram from tool output
          */
         async function initialize() {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:562',message:'Widget initialize called',data:{hasOpenAI:!!window.openai,hasToolOutput:!!(window.openai&&window.openai.toolOutput)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+            
+            // Enhanced debugging
+            console.log('[Mermaid Widget] Initializing...');
+            console.log('[Mermaid Widget] window.openai exists:', !!window.openai);
+            console.log('[Mermaid Widget] window.openai.toolOutput exists:', !!(window.openai && window.openai.toolOutput));
+            
             // Wait a bit for window.openai to be available
             if (window.openai && window.openai.toolOutput) {
                 const toolOutput = getToolOutput();
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:570',message:'Tool output retrieved',data:{toolOutputType:typeof toolOutput,hasStructuredContent:!!toolOutput?.structuredContent,structuredContentKeys:toolOutput?.structuredContent?Object.keys(toolOutput.structuredContent):null,rootKeys:toolOutput?Object.keys(toolOutput):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+                // #endregion
+                console.log('[Mermaid Widget] Raw tool output:', toolOutput);
+                console.log('[Mermaid Widget] Tool output type:', typeof toolOutput);
+                
                 const mermaidCode = extractMermaidCode(toolOutput);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:574',message:'Mermaid code extraction result',data:{found:!!mermaidCode,codeLength:mermaidCode?.length,codePreview:mermaidCode?.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                // #endregion
+                console.log('[Mermaid Widget] Extracted mermaid code:', mermaidCode ? 'Found' : 'Not found');
+                console.log('[Mermaid Widget] Mermaid code length:', mermaidCode ? mermaidCode.length : 0);
                 
                 if (mermaidCode) {
                     currentToolOutput = toolOutput;
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:578',message:'Calling renderDiagram',data:{codeLength:mermaidCode.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+                    // #endregion
                     await renderDiagram(mermaidCode);
                 } else {
+                    console.warn('[Mermaid Widget] No mermaid code found in tool output');
+                    console.warn('[Mermaid Widget] Tool output structure:', JSON.stringify(toolOutput, null, 2));
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:581',message:'Mermaid code not found - showing error',data:{toolOutputStructure:JSON.stringify(toolOutput)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+                    // #endregion
                     document.getElementById('diagramContainer').innerHTML = 
-                        '<div class="loading">Waiting for diagram data...</div>';
+                        '<div class="status error">No diagram data found. Tool output: ' + JSON.stringify(toolOutput, null, 2) + '</div>';
                 }
             } else {
+                console.log('[Mermaid Widget] Waiting for window.openai.toolOutput...');
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:587',message:'Waiting for toolOutput - starting poll',data:{hasOpenAI:!!window.openai},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+                // #endregion
                 // Poll for window.openai availability
                 const checkInterval = setInterval(() => {
                     if (window.openai && window.openai.toolOutput) {
                         clearInterval(checkInterval);
+                        console.log('[Mermaid Widget] window.openai.toolOutput now available');
                         initialize();
                     }
                 }, 100);
@@ -533,8 +618,19 @@
                 setTimeout(() => {
                     clearInterval(checkInterval);
                     if (!window.openai) {
+                        console.error('[Mermaid Widget] window.openai not available after 5 seconds');
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:599',message:'Timeout - window.openai not available',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+                        // #endregion
                         document.getElementById('diagramContainer').innerHTML = 
                             '<div class="status info">ChatGPT Apps SDK not detected. This component is designed to work within ChatGPT.</div>';
+                    } else if (!window.openai.toolOutput) {
+                        console.error('[Mermaid Widget] window.openai exists but toolOutput is missing');
+                        // #region agent log
+                        fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'mermaid-viewer.html:605',message:'Timeout - toolOutput missing',data:{hasOpenAI:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+                        // #endregion
+                        document.getElementById('diagramContainer').innerHTML = 
+                            '<div class="status error">Tool output not available. Please call a tool first.</div>';
                     }
                 }, 5000);
             }

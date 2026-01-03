@@ -448,22 +448,30 @@ async function handleMCPRequest(req, res) {
     // MCP protocol uses JSON-RPC 2.0
     // Notifications don't have an id, so only require id for requests (not notifications)
     const isNotification = method && method.startsWith('notifications/');
-    if (!method || (!isNotification && typeof id === 'undefined')) {
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:450',message:'MCP request validation',data:{hasMethod:!!method,method,hasId:typeof id!=='undefined',id,isNotification,idType:typeof id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    
+    if (!method) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:377',message:'Invalid MCP request - missing method or id',data:{hasMethod:!!method,hasId:typeof id!=='undefined',isNotification,body:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:455',message:'Invalid MCP request - missing method',data:{body:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
       // #endregion
       return res.status(400).json({
         jsonrpc: '2.0',
         error: {
           code: -32600,
-          message: 'Invalid Request'
+          message: 'Invalid Request: method required'
         },
         id: null
       });
     }
     
-    // Handle notifications (they don't return a response)
+    // Handle notifications (they don't return a response and don't require id)
     if (isNotification) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:468',message:'Notification received',data:{method,requestId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       console.log(`[MCP Request ${requestId}] ${method} - Notification received (no response needed)`);
       if (method === 'notifications/initialized') {
         // Client has finished initialization, we can now accept tool calls
@@ -471,6 +479,21 @@ async function handleMCPRequest(req, res) {
       }
       // Notifications don't send a response in JSON-RPC 2.0
       return res.status(200).send();
+    }
+    
+    // For non-notification requests, id is required
+    if (typeof id === 'undefined') {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:480',message:'Invalid MCP request - missing id',data:{method,body:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      return res.status(400).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32600,
+          message: 'Invalid Request: id required for requests'
+        },
+        id: null
+      });
     }
 
     // Ensure params exists for methods that need it
@@ -603,7 +626,15 @@ async function handleMCPRequest(req, res) {
         break;
 
       case 'tools/call':
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:605',message:'tools/call received',data:{hasParams:!!params,paramsKeys:params?Object.keys(params):null,name:params?.name,hasArguments:!!params?.arguments},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
         const { name, arguments: toolArgs } = params || {};
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:612',message:'Tool call processing',data:{toolName:name,hasToolArgs:!!toolArgs,toolArgsKeys:toolArgs?Object.keys(toolArgs):null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         
         if (!name) {
           return res.status(400).json({
@@ -783,6 +814,10 @@ async function handleMCPRequest(req, res) {
                 // outputTemplate is already in tool descriptor, no need to repeat here
               }
             };
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:771',message:'Tool result structure - generate_diagram',data:{toolName:name,hasContent:!!result.content,contentLength:result.content?.length,hasStructuredContent:!!result.structuredContent,hasMermaidCode:!!result.structuredContent?.mermaid_code,mermaidCodeLength:result.structuredContent?.mermaid_code?.length,mermaidCodePreview:result.structuredContent?.mermaid_code?.substring(0,100),resultKeys:Object.keys(result),structuredContentKeys:result.structuredContent?Object.keys(result.structuredContent):null,diagramType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
           } else if (name === 'parse_file') {
             const validated = parseFileSchema.parse(toolArgs);
             const parseResult = parseFileToMermaid(validated.file_content, validated.file_type);
@@ -811,6 +846,10 @@ async function handleMCPRequest(req, res) {
                 // outputTemplate is already in tool descriptor, no need to repeat here
               }
             };
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:810',message:'Parse file tool result structure',data:{hasStructuredContent:!!result.structuredContent,hasMermaidCode:!!result.structuredContent?.mermaid_code,mermaidCodeLength:result.structuredContent?.mermaid_code?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
           } else {
             throw new Error(`Unknown tool: ${name}`);
           }
@@ -849,6 +888,10 @@ async function handleMCPRequest(req, res) {
       case 'resources/read':
         const { uri } = params || {};
         
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:849',message:'Resource read request',data:{uri,requestedUri:uri,expectedUri:'template://mermaid-viewer',matches:uri==='template://mermaid-viewer'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        
         if (uri === 'template://mermaid-viewer') {
           try {
             const templatePath = join(__dirname, 'templates', 'mermaid-viewer.html');
@@ -874,6 +917,10 @@ async function handleMCPRequest(req, res) {
                 }
               ]
             };
+            
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/56a9e989-8fa0-4cf3-a7bb-742b0d43a189',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'server.js:876',message:'Resource read success',data:{uri,hasContents:!!result.contents,contentsLength:result.contents?.length,mimeType:result.contents?.[0]?.mimeType,hasMetadata:!!result.contents?.[0]?.metadata,templateLength:templateContent.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
           } catch (error) {
             return res.status(500).json({
               jsonrpc: '2.0',
